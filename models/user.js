@@ -26,19 +26,6 @@ const UserSchema = new Schema({
     default: 'user',
   },
 });
-
-UserSchema.virtual('user_id').get(function() {
-  return this._id.toHexString();
-});
-
-UserSchema.set('toJSON', {
-  virtuals: true,
-  transform: function(doc, ret) {
-    delete ret._id;
-    delete ret.__v;
-  },
-});
-
 const User = mongoose.model('User', UserSchema);
 
 module.exports = User;

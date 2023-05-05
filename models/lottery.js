@@ -38,7 +38,6 @@ const lotterySchema = new mongoose.Schema({
   collection: 'lottery',
   timestamps: false
 });
-lotterySchema.index({ wallet_address: 1 });
 const Lottery = mongoose.model('Lottery', lotterySchema);
 
 module.exports = Lottery;
