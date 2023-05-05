@@ -18,21 +18,9 @@ app.use('/users', userRoutes);
 app.use('/', indexRoutes);
 app.set('view engine', 'ejs');
 
-/*mongoose.connect(process.env.DB_URI, {
+mongoose.connect(process.env.DB_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true
-}).then(() => {
-  console.log('db connected');
-  app.listen(process.env.PORT, () => console.log(`Server listening on port ${process.env.PORT}`));
-}).catch((error) => {
-  console.log(error);
-  process.exit(1);
-});*/
-// Connect to database
-mongoose.connect(process.env.NODE_ENV === 'production' ? process.env.MONGODB_URI_PROD : process.env.DB_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-
 }).then(() => {
   console.log('db connected');
   app.listen(process.env.PORT, () => console.log(`Server listening on port ${process.env.PORT}`));
@@ -40,7 +28,5 @@ mongoose.connect(process.env.NODE_ENV === 'production' ? process.env.MONGODB_URI
   console.log(error);
   process.exit(1);
 });
-
-// Serve static assets in production
 
 module.exports = app;
