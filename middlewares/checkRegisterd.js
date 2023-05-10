@@ -19,7 +19,7 @@ function authenticateToken(req, res, next) {
     }
   console.log(decodedToken)
     // Set the user ID in the request object
-    req.user = { _id: decodedToken.id };
+    req.user = { _id: decodedToken.id, role: decodedToken.role };
     console.log(req.user)
     next();
   });

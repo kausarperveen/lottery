@@ -2,8 +2,7 @@ const mongoose = require('mongoose');
 
 const lotterySchema = new mongoose.Schema({
   lottery_number: {
-    type: [Number],
-    unique: true,
+    type: Number,
     required: false
   },
   purchase_date: {
@@ -38,6 +37,7 @@ const lotterySchema = new mongoose.Schema({
   collection: 'lottery',
   timestamps: false
 });
+lotterySchema.index({ lottery_number: 1 }, { unique: true, partialFilterExpression: { lottery_number: { $exists: true } } });
 const Lottery = mongoose.model('Lottery', lotterySchema);
 
 module.exports = Lottery;

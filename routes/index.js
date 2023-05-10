@@ -1,15 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
 const User = require('../models/user'); // import the User model
 const Lottery = require('../models/lottery'); // import the Lottery model
 const PasswordResetToken = require('../models/PasswordResetToken'); // import the PasswordResetToken model
-const SECRET_KEY = process.env.JWT_SECRET;
-// Routes that use the models go here
-
-module.exports = router;
-
+// Routes that use the models go here 
+var { signupValidators,loginValidators } = require('../inputvalidators/input')
+var {generatePasswordResetToken,sendPasswordResetEmail}=require('../helper/adminhelper')
 //sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 const { isAdmin } = require('../middlewares/isAdmin');
@@ -21,78 +18,30 @@ router.get('/', function (req, res, next) {
 
 router.post('/signup', async (req, res) => {
   try {
-    const { username, email, confirmEmail, password, confirmPassword, role } = req.body;
-
-    // Check if email and confirmEmail match
-    if (email !== confirmEmail) {
-      return res.status(400).json({ error: 'Email and confirmEmail do not match.' });
-    }
-
-    // Check if password and confirmPassword match
-    if (password !== confirmPassword) {
-      return res.status(400).json({ error: 'Password and confirmPassword do not match.' });
-    }
-
-    // Check if email already exists
-    const existingUser = await User.findOne({ where: { email } });
-    if (existingUser) {
-      return res.status(400).json({ error: 'Email already exists.' });
-    }
-
-    // Check if username already exists
-    const existingUsername = await User.findOne({ where: { username } });
-    if (existingUsername) {
-      return res.status(400).json({ error: 'Username already exists.' });
-    }
-
-    // Hash password
-    const salt = await bcrypt.genSalt();
-    const hashedPassword = await bcrypt.hash(password, salt);
-
-    // Create new user
-    const newUser = await User.create({
-      username,
-      email,
-      password: hashedPassword,
-      role: role
-    });
-
-    res.status(201).json({ id: newUser.id, username: newUser.username, email: newUser.email });
+    await signupValidators(req.body);
+    const user = await User.create(req.body);
+    res.json({ statusCode: 200, message: "User registered successfully", data: user });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: error.message });
+    res.status(error.code).json({ error: error.error });
   }
 });
+
 // Login route
 router.post('/login', async (req, res) => {
-  const { email, password } = req.body;
+  try {
+    const { email, password } = req.body;
+    const authResult = await loginValidators(email, password);
 
-  // Find the user by email
-  const user = await User.findOne({ email });
-
-  if (!user) {
-    return res.status(401).json({ error: 'Invalid email or password' });
-  }
-
-  // Compare password with hashed password in the database
-  const isMatch = await bcrypt.compare(password, user.password);
-
-  if (!isMatch) {
-    return res.status(401).json({ error: 'Invalid email or password' });
-  }
-
-  // Create a JWT token with the user ID as payload
-  const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET);
-
-  // Send back the token and user information
-  res.json({
-    token,
-    user: {
-      id: user.id,
-      username: user.username,
-      email: user.email
+    if (authResult.error) {
+      return res.status(authResult.status).json({ error: authResult.error });
     }
-  });
+
+    const { token } = authResult;
+    res.status(200).json({ message: "Login successful", token, email });
+  } catch (error) {
+    res.status(error.code || 500).json({ error: error.error || "Internal Server Error" });
+  }
 });
 
 router.post('/forgot_password', authenticateToken,async (req, res) => {
@@ -149,36 +98,34 @@ router.post('/reset_password', authenticateToken, async (req, res) => {
   }
 });
 
-function generatePasswordResetToken() {
-  // Generate a random 16-character alphanumeric string for the token
-  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let token = '';
-  for (let i = 0; i < 16; i++) {
-    const randomIndex = Math.floor(Math.random() * chars.length);
-    token += chars[randomIndex];
-  }
-  return token;
-}
 
 
-async function sendPasswordResetEmail(email, token) {
-}
-
-// Start lottery function
+// Route to start a lottery by the admin
 router.post('/start_lottery', authenticateToken, isAdmin, async (req, res) => {
   try {
     // Set a start date for the lottery
     const startDate = new Date();
 
-    // Set the start date for all users who have not played in the current lottery
-    await User.update({ last_played: startDate }, { where: { last_played: null } });
+    // Find users whose last_played field is null
+    const users = await User.find({ last_played: null });
 
-    // Create a new lottery with the current start date
-    const newLottery = await Lottery.create({ purchase_date: startDate });
+    // Start lottery for eligible users
+    const lotteries = await Promise.all(
+      users.map(async (user) => {
+        const newLottery = new Lottery({ purchase_date: startDate });
+        await newLottery.save();
 
-    return res.status(200).json({ message: 'Lottery started successfully', lottery: newLottery });
-  } catch (err) {
-    console.error(err);
+        user.lotteries.push(newLottery._id);
+        user.last_played = startDate;
+        await user.save();
+
+        return newLottery;
+      })
+    );
+
+    return res.status(200).json({ message: 'Lottery started successfully', lotteries });
+  } catch (error) {
+    console.error(error);
     return res.status(500).json({ error: 'Something went wrong while starting the lottery' });
   }
 });
@@ -186,30 +133,24 @@ router.post('/start_lottery', authenticateToken, isAdmin, async (req, res) => {
 // Close lottery function
 router.post('/close_lottery', authenticateToken, isAdmin, async (req, res) => {
   try {
-    // Set an end date for the lottery
+    // Set the end date for the lottery
     const endDate = new Date();
 
-    // Get the latest lottery and set the end date
-    const latestLottery = await Lottery.findOne({ order: [['purchase_date', 'DESC']] });
-    await latestLottery.update({ end_date: endDate });
+    // Find the latest lottery and update the end date
+    const latestLottery = await Lottery.findOne().sort({ purchase_date: -1 }).limit(1);
+    latestLottery.end_date = endDate;
+    await latestLottery.save();
 
-    // Get all users who played in the latest lottery
-    const users = await User.findAll({
-      include: [
-        {
-          model: Lottery,
-          where: { id: latestLottery.id }
-        }
-      ]
-    });
-
-    // Randomly select a winner from the users who played in the latest lottery
-    const winner = users[Math.floor(Math.random() * users.length)];
-
-    return res.status(200).json({ message: 'Lottery closed successfully', winner });
-  } catch (err) {
-    console.error(err);
+    return res.status(200).json({ message: 'Lottery closed successfully', lottery: latestLottery });
+  } catch (error) {
+    console.error(error);
     return res.status(500).json({ error: 'Something went wrong while closing the lottery' });
   }
 });
+
+
+
+
+
+
 module.exports = router;

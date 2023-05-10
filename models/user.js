@@ -25,6 +25,16 @@ const UserSchema = new Schema({
     enum: ['user', 'admin'],
     default: 'user',
   },
+  lotteries: [
+    {
+      type: Schema.Types.ObjectId,
+      ref: 'Lottery',
+    }
+  ],
+  last_played: {
+    type: Date,
+    default: null,
+  }
 });
 const User = mongoose.model('User', UserSchema);
 
