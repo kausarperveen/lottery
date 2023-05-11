@@ -37,7 +37,7 @@ async function signupValidators(body) {
     // Hash password
     const salt = await bcrypt.genSalt();
     const hashedPassword = await bcrypt.hash(password, salt);
-    body.password=hashedPassword
+    body.password = hashedPassword
 
     return true;
   } catch (err) {
@@ -47,9 +47,9 @@ async function signupValidators(body) {
 
 // Function to authenticate user
 async function loginValidators(email, password) {
-   
+
   const user = await User.findOne({ email });
-   console.log(user)
+  console.log(user)
   if (!user) {
     return { error: 'Invalid email or password', status: 401 };
   }
@@ -60,7 +60,7 @@ async function loginValidators(email, password) {
     return { error: 'Invalid email or password', status: 401 };
   }
 
-  const token = jwt.sign({ id: user.id,role: user.role  }, process.env.JWT_SECRET,{"expiresIn":"1h"});
+  const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, { "expiresIn": "1h" });
 
   return {
     token,
@@ -69,16 +69,46 @@ async function loginValidators(email, password) {
       username: user.username,
       email: user.email
     },
-   
+
   };
+}
+
+async function resetPasswordValidators(token, password, confirmPassword) {
+  try {
+    const passwordResetToken = await PasswordResetToken.findOne({ token });
+
+    if (!passwordResetToken || passwordResetToken.expires_at < new Date()) {
+      return { error: 'Invalid or expired token', status: 400 };
+    }
+
+    const user = await User.findById(passwordResetToken.user_id);
+
+    if (!user) {
+      return { error: 'User not found', status: 404 };
+    }
+
+    if (password !== confirmPassword) {
+      return { error: 'Passwords do not match', status: 400 };
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    user.password = hashedPassword;
+    await user.save();
+    await passwordResetToken.deleteOne();
+
+    return { message: 'Password reset successfully' };
+  } catch (error) {
+    console.error(error);
+    return { error: error.message, status: 500 };
+  }
 }
 
 
 
 
 
-
-module.exports = { 
-    signupValidators,
-    loginValidators
- }
+module.exports = {
+  signupValidators,
+  loginValidators,
+  resetPasswordValidators
+}

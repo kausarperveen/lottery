@@ -5,7 +5,7 @@ const User = require('../models/user'); // import the User model
 const Lottery = require('../models/lottery'); // import the Lottery model
 const PasswordResetToken = require('../models/PasswordResetToken'); // import the PasswordResetToken model
 // Routes that use the models go here 
-var { signupValidators,loginValidators } = require('../inputvalidators/input')
+var { signupValidators,loginValidators,resetPasswordValidators } = require('../inputvalidators/input')
 var {generatePasswordResetToken,sendPasswordResetEmail}=require('../helper/adminhelper')
 //sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
@@ -70,31 +70,20 @@ router.post('/forgot_password', authenticateToken,async (req, res) => {
   }
 });
 
-// POST /reset_password
-router.post('/reset_password', authenticateToken, async (req, res) => {
+router.post('/reset-password', async (req, res) => {
   try {
     const { token, password, confirmPassword } = req.body;
-    const passwordResetToken = await PasswordResetToken.findOne({ token });
-    if (!passwordResetToken || passwordResetToken.expires_at < new Date()) {
-      return res.status(400).json({ error: 'Invalid or expired token' });
-    }
-    const user = await User.findById(passwordResetToken.user_id);
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-    if (password !== confirmPassword) {
-      return res.status(400).json({ error: 'Passwords do not match' });
+
+    const validationResult = await resetPasswordValidators(token, password, confirmPassword);
+
+    if (validationResult.error) {
+      return res.status(validationResult.status).json({ error: validationResult.error });
     }
 
-    // Hash the password using bcrypt
-    const hashedPassword = await bcrypt.hash(password, 10);
-    user.password = hashedPassword;
-    await user.save();
-    await passwordResetToken.deleteOne();
-    res.status(200).json({ message: 'Password reset successfully' });
+    return res.json({ message: validationResult.message });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message });
   }
 });
 

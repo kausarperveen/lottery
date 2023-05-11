@@ -12,7 +12,6 @@ const indexRoutes = require('./routes/index');
 require('./models/user');
 require('./models/lottery');
 require('./models/PasswordResetToken');
-const port = 3000
 const app = express();
 
 app.use(bodyParser.json());
@@ -25,7 +24,7 @@ mongoose.connect(process.env.DB_URI, {
   useUnifiedTopology: true
 }).then(() => {
   console.log('db connected');
-  app.listen(process.env.PORT, () => console.log(`Server listening on port ${port}`));
+  app.listen(process.env.PORT, () => console.log(`Server listening on port ${process.env.PORT}`));
 }).catch((error) => {
   console.log(error);
   process.exit(1);

@@ -62,7 +62,6 @@ router.post('/buy_lottery', authenticateToken, async (req, res) => {
     return res.status(500).send('Internal server error');
   }
 });
-
 router.get('/generate-random-winners', authenticateToken, async (req, res) => {
   try {
     const numWinners = 5; // Number of random lottery numbers to generate is set to 5
@@ -71,7 +70,7 @@ router.get('/generate-random-winners', authenticateToken, async (req, res) => {
     const lotteryUsers = await User.aggregate([
       { $sample: { size: numWinners } },
       { $lookup: { from: 'lottery', localField: '_id', foreignField: 'user_id', as: 'lotteries' } },
-      { $project: { _id: 1, lottery_number: { $arrayElemAt: ['$lotteries.lottery_number', 0] } } }
+      { $project: { _id: 0, lottery_number: { $arrayElemAt: ['$lotteries.lottery_number', 0] } } }
     ]);
 
     res.json({ winning_users: lotteryUsers });
@@ -79,26 +78,27 @@ router.get('/generate-random-winners', authenticateToken, async (req, res) => {
     console.error(error);
     res.status(500).json({ error: error.message });
   }
-})
+});
+    
 
-    router.get('/draw', authenticateToken, async (req, res) => {
+router.get('/draw', async (req, res) => {
       try {
-        const numWinners = parseInt(req.query.numWinners) || 5; // Default number of winners to generate is 5
+        const numWinners = 5; // Number of random lottery numbers to generate is set to 5
     
         // Retrieve all the users who have bought lottery tickets
         const lotteryUsers = await User.aggregate([
           { $sample: { size: numWinners } },
           { $lookup: { from: 'lottery', localField: '_id', foreignField: 'user_id', as: 'lotteries' } },
-          { $project: { _id: 1, 'lotteries.lottery_number': 1 } },
-          { $limit: numWinners }
+          { $project: { _id: 1, lottery_number: { $arrayElemAt: ['$lotteries.lottery_number', 0] } } }
         ]);
     
-        res.json({ winning_users: lotteryUsers });
+        res.json({ draw: lotteryUsers });
       } catch (error) {
         console.error(error);
         res.status(500).json({ error: error.message });
       }
     });
+    
     
 
 module.exports = router;
